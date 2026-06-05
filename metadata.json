@@ -1,0 +1,6 @@
+{
+  "name": "BugSense AI",
+  "description": "Expert soft debugging workspace with automated reproduction steps, root cause analysis, and code patches.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
