@@ -120,7 +120,7 @@ This project is licensed under the MIT License.
 
 ## 👨‍💻 Author
 
-YOUR NAME
+NAME:
 Maharaja Muneeswaran
 maharajamuneeswaran05@gmail.com
 
