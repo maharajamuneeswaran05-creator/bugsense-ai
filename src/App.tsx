@@ -95,8 +95,8 @@ export default function App() {
   const [logs, setLogs] = useState("");
   const [codeContext, setCodeContext] = useState("");
 
-  const [user, setUser] = useState<any>({ isAnonymous: true }); // Mock user
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [user, setUser] = useState<any>(null); // null = not signed in, show sign-in page
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [savedSessions, setSavedSessions] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
