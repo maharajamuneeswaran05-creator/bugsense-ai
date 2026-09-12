@@ -8,7 +8,7 @@ import { createServer as createViteServer } from "vite";
 const app = express();
 app.use(express.json());
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Lazy initialize Firebase Admin
 let adminApp: admin.app.App | null = null;
