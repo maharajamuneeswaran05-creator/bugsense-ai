@@ -677,14 +677,7 @@ export default function App() {
                 <span>Sign in with Google</span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleGuestSignIn}
-                disabled={isSigningIn}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-semibold text-xs py-2.5 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-              >
-                <span>Continue as Guest Dev (Skip Auth)</span>
-              </button>
+
             </div>
 
             {authError && (
@@ -985,14 +978,7 @@ export default function App() {
                   <span>Sign in with Google</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleGuestSignIn}
-                  disabled={isSigningIn}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-semibold text-xs py-2.5 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-                >
-                  <span>Continue as Guest Dev (Skip Auth)</span>
-                </button>
+
 
                 {/* Separator */}
                 <div className="relative flex items-center justify-center">
@@ -1160,17 +1146,9 @@ export default function App() {
                   
                   <div className="flex gap-2">
                     <button
-                      onClick={handleGuestSignIn}
-                      disabled={isSigningIn}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-xs font-bold py-2.5 text-slate-200 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-                    >
-                      <Users className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Guest Dev</span>
-                    </button>
-                    <button
                       onClick={handleGoogleSignIn}
                       disabled={isSigningIn}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs py-2.5 hover:bg-sky-400 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                      className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs py-2.5 hover:bg-sky-400 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                     >
                       <Globe className="w-3.5 h-3.5" />
                       <span>Google Login</span>
