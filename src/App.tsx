@@ -64,8 +64,19 @@ import {
   FAQsSection,
   WebsiteFooter,
 } from "./components/SaaSSections";
-import { getAuth, getDb, handleFirestoreError, OperationType, signUpWithEmail, signInWithEmail, signInWithGoogle, signInAsGuest } from "./lib/firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { 
+  getAuth, 
+  getDb, 
+  handleFirestoreError, 
+  OperationType, 
+  signUpWithEmail, 
+  signInWithEmail, 
+  signInWithGoogle, 
+  signInAsGuest,
+  subscribeAuth,
+  logoutUser,
+  isFirebaseConfigured 
+} from "./lib/firebase";
 import {
   collection,
   query,
@@ -147,39 +158,45 @@ export default function App() {
 
   // Sync Auth listener & saved diagnostics sessions
   useEffect(() => {
-    const auth = getAuth();
-    if (!auth) {
-      setIsAuthLoading(false);
-      return;
-    }
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+    setIsAuthLoading(true);
+    const unsubscribeAuth = subscribeAuth((currentUser) => {
       setUser(currentUser);
       setIsAuthLoading(false);
       if (currentUser) {
         const db = getDb();
-        if (!db) return;
-        setIsLoadingHistory(true);
-        const q = query(
-          collection(db, "diagnostics"),
-          where("userId", "==", currentUser.uid),
-          orderBy("createdAt", "desc")
-        );
-        const unsubscribeSnapshot = onSnapshot(
-          q,
-          (snapshot) => {
-            const sessions: any[] = [];
-            snapshot.forEach((doc) => {
-              sessions.push({ id: doc.id, ...doc.data() });
-            });
-            setSavedSessions(sessions);
-            setIsLoadingHistory(false);
-          },
-          (error) => {
-            console.error("Firestore loading error:", error);
-            setIsLoadingHistory(false);
+        if (db) {
+          setIsLoadingHistory(true);
+          const q = query(
+            collection(db, "diagnostics"),
+            where("userId", "==", currentUser.uid),
+            orderBy("createdAt", "desc")
+          );
+          const unsubscribeSnapshot = onSnapshot(
+            q,
+            (snapshot) => {
+              const sessions: any[] = [];
+              snapshot.forEach((doc) => {
+                sessions.push({ id: doc.id, ...doc.data() });
+              });
+              setSavedSessions(sessions);
+              setIsLoadingHistory(false);
+            },
+            (error) => {
+              console.error("Firestore loading error:", error);
+              setIsLoadingHistory(false);
+            }
+          );
+          return () => unsubscribeSnapshot();
+        } else {
+          // Local storage session history
+          try {
+            const raw = localStorage.getItem(`bugsense_diagnostics_${currentUser.uid}`);
+            setSavedSessions(raw ? JSON.parse(raw) : []);
+          } catch {
+            setSavedSessions([]);
           }
-        );
-        return () => unsubscribeSnapshot();
+          setIsLoadingHistory(false);
+        }
       } else {
         setSavedSessions([]);
         setIsLoadingHistory(false);
@@ -197,11 +214,14 @@ export default function App() {
     if (msg.includes("auth/operation-not-allowed")) {
       return "Email/Password sign-up is not allowed yet. Go to Firebase Console -> Authentication -> Sign-in method, click 'Add new provider', choose 'Email/Password', enable it, and click 'Save'.";
     }
-    if (msg.includes("auth/invalid-credential") || msg.includes("auth/wrong-password") || msg.includes("auth/user-not-found")) {
-      return "Invalid email address or incorrect password. If you register for the first time, make sure to click 'Sign Up' tab first!";
+    if (msg.includes("auth/invalid-credential") || msg.includes("auth/wrong-password")) {
+      return "Incorrect password. Please verify your credentials and try again.";
+    }
+    if (msg.includes("auth/user-not-found")) {
+      return "No account found with this email. Please switch to the 'Sign Up' tab to create an account first!";
     }
     if (msg.includes("auth/email-already-in-use")) {
-      return "This email address is already in use by another workspace developer. Please log in instead or use another email.";
+      return "This email address is already in use. Please log in instead or use another email.";
     }
     return msg;
   };
@@ -210,7 +230,8 @@ export default function App() {
     setIsSigningIn(true);
     setAuthError(null);
     try {
-      await signInAsGuest();
+      const res = await signInAsGuest();
+      if (res?.user) setUser(res.user);
       setIsAuthModalOpen(false);
     } catch (err: any) {
       setAuthError(mapAuthError(err));
@@ -223,7 +244,8 @@ export default function App() {
     setIsSigningIn(true);
     setAuthError(null);
     try {
-      await signInWithGoogle();
+      const res = await signInWithGoogle();
+      if (res?.user) setUser(res.user);
       setIsAuthModalOpen(false);
     } catch (err: any) {
       setAuthError(mapAuthError(err));
@@ -244,8 +266,8 @@ export default function App() {
     setIsSigningIn(true);
     setAuthError(null);
     try {
-      await signUpWithEmail(email, password);
-      // Clear inputs upon success
+      const res = await signUpWithEmail(email, password);
+      if (res?.user) setUser(res.user);
       setEmail("");
       setPassword("");
       setIsAuthModalOpen(false);
@@ -264,8 +286,8 @@ export default function App() {
     setIsSigningIn(true);
     setAuthError(null);
     try {
-      await signInWithEmail(email, password);
-      // Clear inputs upon success
+      const res = await signInWithEmail(email, password);
+      if (res?.user) setUser(res.user);
       setEmail("");
       setPassword("");
       setIsAuthModalOpen(false);
@@ -278,12 +300,12 @@ export default function App() {
 
   const handleSignOut = async () => {
     try {
-      const authInstance = getAuth();
-      if (authInstance) {
-        await signOut(authInstance);
-      }
+      await logoutUser();
     } catch (err: any) {
       console.error("Sign out error:", err);
+    } finally {
+      setUser(null);
+      setSavedSessions([]);
     }
   };
 
@@ -385,12 +407,11 @@ export default function App() {
       setAnalysisResult(data);
       setActiveTab("senior-dev");
 
-      // Save to Firestore if user is active
+      // Save to Firestore or Local Storage if user is active
       const authInstance = getAuth();
-      if (authInstance?.currentUser) {
+      const dbInstance = getDb();
+      if (authInstance?.currentUser && dbInstance) {
         try {
-          const dbInstance = getDb();
-          if (!dbInstance) throw new Error("Database not initialized");
           await addDoc(collection(dbInstance, "diagnostics"), {
             title: data.title || "Custom Diagnosis",
             bug_report: bugReport,
@@ -409,6 +430,32 @@ export default function App() {
         } catch (dbErr) {
           console.error("Firestore automatic write error:", dbErr);
           handleFirestoreError(dbErr, OperationType.CREATE, "diagnostics");
+        }
+      } else if (user) {
+        try {
+          const key = `bugsense_diagnostics_${user.uid}`;
+          const currentList = JSON.parse(localStorage.getItem(key) || "[]");
+          const newTrace = {
+            id: "diag-" + Date.now(),
+            title: data.title || "Custom Diagnosis",
+            bug_report: bugReport,
+            logs: logs,
+            code_context: codeContext,
+            extra_context: extraContext || "",
+            severity: data.severity || "Medium",
+            subsystem: data.affected_components?.[0] || "General",
+            risk_assessment: data.risky_areas?.[0] || "",
+            root_cause: data.root_cause || "",
+            user_friendly_report: data.user_friendly_report || "",
+            createdAt: new Date().toISOString(),
+            userId: user.uid,
+            result: data,
+          };
+          const updated = [newTrace, ...currentList];
+          localStorage.setItem(key, JSON.stringify(updated));
+          setSavedSessions(updated);
+        } catch (localErr) {
+          console.error("Local session write error:", localErr);
         }
       }
     } catch (err: any) {
@@ -629,6 +676,15 @@ export default function App() {
                 </svg>
                 <span>Sign in with Google</span>
               </button>
+
+              <button
+                type="button"
+                onClick={handleGuestSignIn}
+                disabled={isSigningIn}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-semibold text-xs py-2.5 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                <span>Continue as Guest Dev (Skip Auth)</span>
+              </button>
             </div>
 
             {authError && (
@@ -755,30 +811,45 @@ export default function App() {
             </div>
 
             {/* Top Sign Up / Login controls & indicator */}
-            <div className="flex flex-col items-center gap-2 border-l border-white/10 pl-3">
+            <div className="flex items-center gap-2 border-l border-white/10 pl-3">
               {user ? (
-                <div className="flex flex-col items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   <div 
                     title={user.isAnonymous ? "Guest Developer" : user.email}
-                    className="w-10 h-10 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-sm font-black text-slate-950 uppercase shadow-md shadow-sky-500/10 border border-sky-400/20"
+                    className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-xs font-black text-slate-950 uppercase shadow-md shadow-sky-500/10 border border-sky-400/20"
                   >
                     {user.email ? user.email[0] : "G"}
                   </div>
                   
-                  <div className="hidden sm:flex flex-col items-start gap-0.5">
+                  <div className="hidden sm:flex flex-col items-start leading-tight">
                     <span 
-                      className="text-[10px] text-slate-200 font-extrabold max-w-[110px] truncate"
-                      title={user.email || "Anonymous Developer"}
+                      className="text-[10px] text-slate-200 font-extrabold max-w-[120px] truncate"
+                      title={user.email || "Guest Developer"}
                     >
-                      {user.isAnonymous ? "Guest Dev" : user.email}
+                      {user.isAnonymous ? "Guest Dev" : user.displayName || user.email}
                     </span>
-                    <span className="text-[9px] text-emerald-400 font-bold tracking-wider font-mono">WORKSPACE LIVE</span>
+                    <span className="text-[8px] text-emerald-400 font-bold tracking-wider font-mono">
+                      {user.isAnonymous ? "GUEST MODE" : "WORKSPACE LIVE"}
+                    </span>
                   </div>
+
+                  {user.isAnonymous && (
+                    <button
+                      onClick={() => {
+                        setIsSignUp(false);
+                        setAuthError(null);
+                        setIsAuthModalOpen(true);
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[10px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer shadow-sm shadow-sky-500/15"
+                    >
+                      Sign In
+                    </button>
+                  )}
 
                   <button
                     onClick={handleSignOut}
                     title="Exit / Logout Workspace"
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-black font-semibold text-[10px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer shadow-sm"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-semibold text-[10px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer border border-white/5"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Sign Out</span>
@@ -912,6 +983,15 @@ export default function App() {
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
                   </svg>
                   <span>Sign in with Google</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleGuestSignIn}
+                  disabled={isSigningIn}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-semibold text-xs py-2.5 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  <span>Continue as Guest Dev (Skip Auth)</span>
                 </button>
 
                 {/* Separator */}
