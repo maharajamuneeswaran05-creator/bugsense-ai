@@ -214,20 +214,8 @@ export function subscribeAuth(callback: (user: any) => void): () => void {
   // Local workspace mode: register listener and notify with current local user immediately
   localAuthListeners.push(callback);
   const current = getStoredLocalUser();
-  // Default to Guest Dev if no record exists yet
-  if (current) {
-    callback(current);
-  } else {
-    // If not set, start as Guest Dev
-    const defaultGuest: WorkspaceUser = {
-      uid: "guest-default",
-      email: null,
-      displayName: "Guest Dev",
-      isAnonymous: true
-    };
-    localStorage.setItem("bugsense_current_user", JSON.stringify(defaultGuest));
-    callback(defaultGuest);
-  }
+  // Notify with stored user, or null if not signed in
+  callback(current ?? null);
 
   return () => {
     const idx = localAuthListeners.indexOf(callback);

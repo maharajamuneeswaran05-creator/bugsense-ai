@@ -805,39 +805,26 @@ export default function App() {
 
             {/* Top Sign Up / Login controls & indicator */}
             <div className="flex items-center gap-2 border-l border-white/10 pl-3">
-              {user ? (
+              {user && !user.isAnonymous ? (
                 <div className="flex items-center gap-2.5">
                   <div 
-                    title={user.isAnonymous ? "Guest Developer" : user.email}
+                    title={user.email}
                     className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-xs font-black text-slate-950 uppercase shadow-md shadow-sky-500/10 border border-sky-400/20"
                   >
-                    {user.email ? user.email[0] : "G"}
+                    {user.email ? user.email[0] : user.displayName?.[0] || "U"}
                   </div>
                   
                   <div className="hidden sm:flex flex-col items-start leading-tight">
                     <span 
                       className="text-[10px] text-slate-200 font-extrabold max-w-[120px] truncate"
-                      title={user.email || "Guest Developer"}
+                      title={user.email}
                     >
-                      {user.isAnonymous ? "Guest Dev" : user.displayName || user.email}
+                      {user.displayName || user.email}
                     </span>
                     <span className="text-[8px] text-emerald-400 font-bold tracking-wider font-mono">
-                      {user.isAnonymous ? "GUEST MODE" : "WORKSPACE LIVE"}
+                      WORKSPACE LIVE
                     </span>
                   </div>
-
-                  {user.isAnonymous && (
-                    <button
-                      onClick={() => {
-                        setIsSignUp(false);
-                        setAuthError(null);
-                        setIsAuthModalOpen(true);
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[10px] uppercase tracking-wide transition-all active:scale-95 cursor-pointer shadow-sm shadow-sky-500/15"
-                    >
-                      Sign In
-                    </button>
-                  )}
 
                   <button
                     onClick={handleSignOut}
